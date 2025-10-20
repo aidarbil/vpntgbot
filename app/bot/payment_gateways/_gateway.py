@@ -68,7 +68,21 @@ class PaymentGateway(ABC):
 
         async with self.session() as session:
             transaction = await Transaction.get_by_id(session=session, payment_id=payment_id)
-            data = SubscriptionData.unpack(transaction.subscription)
+
+            if not transaction:
+                logger.warning(f"Skipping payment {payment_id}: transaction not found.")
+                return
+
+            try:
+                data = SubscriptionData.unpack(transaction.subscription)
+            except Exception as exception:
+                logger.error(
+                    "Failed to unpack subscription payload for transaction %s: %s",
+                    payment_id,
+                    exception,
+                )
+                return
+
             logger.debug(f"Subscription data unpacked: {data}")
             user = await User.get(session=session, tg_id=data.user_id)
 
@@ -77,6 +91,19 @@ class PaymentGateway(ABC):
                 payment_id=payment_id,
                 status=TransactionStatus.COMPLETED,
             )
+
+        if not user:
+            logger.error(
+                "User %s referenced by transaction %s was not found; aborting payment processing.",
+                data.user_id,
+                payment_id,
+            )
+            await self.services.notification.notify_developer(
+                text=EVENT_PAYMENT_SUCCEEDED_TAG
+                + "\n\n"
+                + f"Payment {payment_id}: user {data.user_id} not found in database.",
+            )
+            return
 
         if self.config.shop.REFERRER_REWARD_ENABLED:
             await self.services.referral.add_referrers_rewards_on_payment(
@@ -145,7 +172,20 @@ class PaymentGateway(ABC):
         logger.info(f"Payment canceled {payment_id}")
         async with self.session() as session:
             transaction = await Transaction.get_by_id(session=session, payment_id=payment_id)
-            data = SubscriptionData.unpack(transaction.subscription)
+
+            if not transaction:
+                logger.warning(f"Skipping cancel notification for {payment_id}: transaction not found.")
+                return
+
+            try:
+                data = SubscriptionData.unpack(transaction.subscription)
+            except Exception as exception:
+                logger.error(
+                    "Failed to unpack subscription payload for canceled transaction %s: %s",
+                    payment_id,
+                    exception,
+                )
+                return
 
             await Transaction.update(
                 session=session,

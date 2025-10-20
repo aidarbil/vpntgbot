@@ -109,5 +109,19 @@ async def successful_payment(
         status=TransactionStatus.COMPLETED,
     )
 
+    if not transaction:
+        transaction = await Transaction.get_by_id(
+            session=session,
+            payment_id=message.successful_payment.telegram_payment_charge_id,
+        )
+
+    if not transaction:
+        logger.error(
+            "Payment %s for user %s could not be persisted or located.",
+            message.successful_payment.telegram_payment_charge_id,
+            user.tg_id,
+        )
+        return
+
     gateway = gateway_factory.get_gateway(NavSubscription.PAY_TELEGRAM_STARS)
     await gateway.handle_payment_succeeded(payment_id=transaction.payment_id)

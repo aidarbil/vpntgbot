@@ -66,6 +66,9 @@ class ServerPoolService:
         except Exception as exception:
             logger.error(f"Failed to fetch inbounds: {exception}")
             return None
+        if not inbounds:
+            logger.error("No inbounds returned by 3X-UI API. Ensure at least one inbound exists.")
+            return None
         return inbounds[0].id
 
     async def get_connection(self, user: User) -> Connection | None:
@@ -125,11 +128,16 @@ class ServerPoolService:
 
         logger.info(f"Sync complete. Currently active servers: {len(self._servers)}")
 
-    async def assign_server_to_user(self, user: User) -> None:
+    async def assign_server_to_user(self, user: User) -> bool:
         async with self.session() as session:
             server = await self.get_available_server()
+            if not server:
+                logger.critical(f"Unable to assign server to user {user.tg_id}: pool is empty.")
+                return False
+
             user.server_id = server.id
             await User.update(session=session, tg_id=user.tg_id, server_id=server.id)
+            return True
 
     async def get_available_server(self) -> Server | None:
         await self.sync_servers()

@@ -144,7 +144,11 @@ class VPNService:
     ) -> bool:
         logger.info(f"Creating new client {user.tg_id} | {devices} devices {duration} days.")
 
-        await self.server_pool_service.assign_server_to_user(user)
+        assigned = await self.server_pool_service.assign_server_to_user(user)
+        if not assigned:
+            logger.error(f"Failed to assign server to user {user.tg_id}.")
+            return False
+
         connection = await self.server_pool_service.get_connection(user)
 
         if not connection:
@@ -161,6 +165,13 @@ class VPNService:
             total_gb=total_gb,
         )
         inbound_id = await self.server_pool_service.get_inbound_id(connection.api)
+        if inbound_id is None:
+            logger.error(
+                "Cannot create client %s: inbound ID is unavailable for server %s.",
+                user.tg_id,
+                connection.server.name if connection.server else "unknown",
+            )
+            return False
 
         try:
             await connection.api.client.add(inbound_id=inbound_id, clients=[new_client])
@@ -196,6 +207,12 @@ class VPNService:
 
             if not replace_devices:
                 current_device_limit = await self.get_limit_ip(user=user, client=client)
+                if current_device_limit is None:
+                    logger.error(
+                        "Unable to determine device limit for user %s; aborting update.",
+                        user.tg_id,
+                    )
+                    return False
                 devices = current_device_limit + devices
 
             current_time = get_current_timestamp()

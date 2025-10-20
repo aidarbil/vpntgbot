@@ -182,7 +182,6 @@
 | LOG_FORMAT | ⭕ | %(asctime)s \| %(name)s \| %(levelname)s \| %(message)s | Формат логов |
 | LOG_ARCHIVE_FORMAT | ⭕ | zip | Формат архива логов (например, zip, gz) |
 
-
 ### Настройка тарифных планов
 
 ```json

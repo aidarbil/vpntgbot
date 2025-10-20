@@ -84,7 +84,21 @@ async def callback_subscription_extend(
     logger.info(f"User {user.tg_id} started extend subscription.")
     client = await services.vpn.is_client_exists(user)
 
+    if client is None:
+        await services.notification.show_popup(
+            callback=callback,
+            text=_("subscription:popup:error_fetching_data"),
+        )
+        return
+
     current_devices = await services.vpn.get_limit_ip(user=user, client=client)
+    if current_devices is None:
+        await services.notification.show_popup(
+            callback=callback,
+            text=_("subscription:popup:error_fetching_data"),
+        )
+        return
+
     if not services.plan.get_plan(current_devices):
         await services.notification.show_popup(
             callback=callback,
